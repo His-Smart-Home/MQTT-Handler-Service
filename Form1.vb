@@ -19,7 +19,7 @@ Public Class Form1
         Me.WindowState = FormWindowState.Minimized
         Try
             ' Read MQTT settings from the registry
-            Dim key = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64) _
+            Dim key = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry32) _
                      .OpenSubKey("Software\His Smart Home\MQTT-Listener")
             If key Is Nothing Then
                 MessageBox.Show("Registry key not found.")
