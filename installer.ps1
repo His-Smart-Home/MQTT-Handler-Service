@@ -1,4 +1,4 @@
-# --- Configuration ---
+# Configuration
 $licenseUrl = "https://raw.githubusercontent.com/His-Smart-Home/MQTT-Handler-Service/refs/heads/main/LICENSE"
 $installerUrl = "https://github.com/His-Smart-Home/MQTT-Handler-Service/releases/download/main-1.0/installer.zip"
 $tempZip = "$env:TEMP\mqtt_installer.zip"
@@ -6,23 +6,24 @@ $installPath = "C:\Program Files (x86)\His Smart Home\MQTT Handler"
 $logDir = "C:\ProgramData\His Smart Home\Installer"
 $logFile = Join-Path $logDir "install.log"
 $startMenuFolder = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\His Smart Home"
-$userStartupFolder = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup"
+$runKeyPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run"
+$runKeyName = "MQTTHandlerConfig"
 
-# --- Logging Function ---
+# Logging function
 function Log {
     param([string]$message)
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    "$timestamp - $message" | Tee-Object -FilePath $logFile -Append
+    "$timestamp - $message" | Out-File -FilePath $logFile -Append -Encoding UTF8
 }
 
-# --- Start Logging ---
-if (!(Test-Path -Path $logDir)) {
+# Ensure logging directory exists
+if (!(Test-Path $logDir)) {
     New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 }
-Log "`n--- Installation Started ---"
+Log "`n--- Intune Installation Started ---"
 
-# --- Create Install Directory ---
-if (!(Test-Path -Path $installPath)) {
+# Ensure installation path exists
+if (!(Test-Path $installPath)) {
     try {
         New-Item -ItemType Directory -Path $installPath -Force | Out-Null
         Log "Created installation directory: $installPath"
@@ -32,27 +33,9 @@ if (!(Test-Path -Path $installPath)) {
     }
 }
 
-# --- License Agreement ---
-Log "Downloading license from $licenseUrl"
+# Download installer
 try {
-    $licenseText = Invoke-WebRequest -Uri $licenseUrl -UseBasicParsing
-    Write-Host $licenseText.Content
-    Log "License displayed to user."
-} catch {
-    Log "ERROR: Failed to download license. $_"
-    exit 1
-}
-
-$agree = Read-Host "`nDo you agree to the terms of the license above? (yes/no)"
-if ($agree -ne "yes") {
-    Log "User declined license agreement. Installation aborted."
-    Write-Host "You did not agree to the license. Exiting installer."
-    exit 1
-}
-
-# --- Download Installer ---
-Log "Downloading installer from $installerUrl"
-try {
+    Log "Downloading installer from $installerUrl"
     Invoke-WebRequest -Uri $installerUrl -OutFile $tempZip -UseBasicParsing
     Log "Installer downloaded to $tempZip"
 } catch {
@@ -60,18 +43,17 @@ try {
     exit 1
 }
 
-# --- Extract ZIP ---
-Log "Extracting ZIP to $installPath"
+# Extract installer
 try {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     [System.IO.Compression.ZipFile]::ExtractToDirectory($tempZip, $installPath)
-    Log "Extraction complete."
+    Log "Installer extracted to $installPath"
 } catch {
-    Log "ERROR: Failed to extract installer ZIP. $_"
+    Log "ERROR: Failed to extract ZIP. $_"
     exit 1
 }
 
-# --- Create Start Menu Shortcuts ---
+# Create Start Menu Shortcuts
 function Create-Shortcut {
     param (
         [string]$targetPath,
@@ -96,14 +78,14 @@ $serviceExe = Join-Path $installPath "mqtt-handler-service.exe"
 
 Create-Shortcut -targetPath $configExe -shortcutPath "$startMenuFolder\MQTT Handler Config.lnk" -description "MQTT Config Tool"
 Create-Shortcut -targetPath $serviceExe -shortcutPath "$startMenuFolder\MQTT Handler Service.lnk" -description "MQTT Handler Service"
-
 Log "Created Start Menu shortcuts."
 
-# --- Add to Startup ---
-$startupShortcut = Join-Path $userStartupFolder "MQTT Handler Config.lnk"
-Create-Shortcut -targetPath $configExe -shortcutPath $startupShortcut -description "MQTT Config Auto Start"
-Log "Added config tool to user startup: $startupShortcut"
+# Add Config Utility to startup (for all users using HKLM Run key)
+try {
+    Set-ItemProperty -Path $runKeyPath -Name $runKeyName -Value "`"$configExe`""
+    Log "Registered $configExe in system startup (Run key: $runKeyName)"
+} catch {
+    Log "ERROR: Failed to add startup entry to registry. $_"
+}
 
-# --- Done ---
-Log "--- Installation Completed Successfully ---"
-Write-Host "Installation complete! Files extracted to '$installPath'."
+Log "--- Intune Installation Completed ---"
